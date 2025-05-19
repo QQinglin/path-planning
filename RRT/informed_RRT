@@ -1,0 +1,76 @@
+close all;
+clc;
+clear;
+hold on;
+axis equal
+%variable declaration
+max_iteration = 300;
+model = create_model('test1.csv');
+model.sampling_rad = 3;
+cost_log = [];
+tree1 = RRT(model.start, model.sampling_rad);
+%% Main draw loop
+for iteration = 1:max_iteration
+    clf;
+    draw_map(model);
+    if model.found ~=0
+        %% phase 2
+        random_point = informed_rrt_sampling(model);        
+        draw_circle(random_point.x, random_point.y, 0.1, 2, [1 0 1], [1 0 1]);
+        if model.found == 1
+            nearest_id = RRT.find_nearest_id(random_point, tree1);
+            new_node = RRT.get_sampling_point(random_point, nearest_id, tree1);
+            draw_circle(new_node.x, new_node.y, 0.1, 2, [0 0 0], [0 0 0]);
+            ch = obstacle_free(model, Edge(new_node, tree1.node(nearest_id)));
+            if ch(1) == true
+                tree1 = add_node(new_node, nearest_id, tree1);
+                tree1 = optimize_surround(model, tree1);
+            end
+            RRT.draw_tree(tree1, [1 0 0]);
+            show_solution(model.best_reached_node_id, tree1.node);
+            if tree1.node(model.current_reached__node_id).cost < model.best_solution
+                model.best_solution = tree1.node(model.current_reached__node_id).cost;
+                model.best_reached__node_id = model.current_reached__node_id;
+            end
+        end
+        axis([0 model.width 0 model.height]);
+        cost_log(end+1) = model.best_solution;
+        if (mod(iteration,10) == 0)
+            disp(strcat(strcat('Iteration: ', num2str(iteration))));
+            disp(strcat('cost = ', num2str(model.best_solution)));
+        end
+    else
+        %% phase 1
+        random_point = informed_rrt_sampling(model);
+        draw_circle(random_point.x, random_point.y, 0.1, 2, [1 0 1], [1 0 1]);
+        
+        nearest_id = RRT.find_nearest_id(random_point, tree1);
+        new_node = RRT.get_sampling_point(random_point, nearest_id, tree1);
+        draw_circle(new_node.x, new_node.y, 0.1, 2, [0 0 0], [0 0 0]);
+        
+        ch = obstacle_free(model, Edge(new_node, tree1.node(nearest_id)));
+        
+        if ch(1) == true
+            tree1 = add_node(new_node, nearest_id, tree1);
+            tree1 = optimize_surround(model, tree1);            
+            if (new_node.x == model.destination.x) && (new_node.y == model.destination.y)
+                model.found = 1;
+                if model.found
+                    model.best_reached_node_id = length(tree1.node());
+                    model.current_reached__node_id = length(tree1.node());
+                    model.best_solution = tree1.node(end).cost;
+                    cost_log(end+1) = tree1.node(end).cost;
+                end
+            end
+        end
+        RRT.draw_tree(tree1, [1 0 0]);
+    end
+    axis([0 model.width 0 model.height]);
+    drawnow;
+end
+%% Show result
+figure;
+plot(cost_log,'LineWidth',2);
+xlabel('Iteration');
+ylabel('Best Cost');
+grid on;
